@@ -183,10 +183,10 @@ if __name__ == "__main__":
     #   2) Audio and spectrograms
     #   3) Additional data: labels, timbre features
 
-    #gen_dexed_dataset(False, False, False,
-    #                  False, False, True)
-    gen_surge_dataset(False, False, False,
-                      False, False, True)
-    gen_nsynth_dataset(False, False,
-                       False, False, True)
+    gen_dexed_dataset(False, False, True,
+                     False, False, False)
+    # gen_surge_dataset(False, False, False,
+    #                   False, False, True)
+    # gen_nsynth_dataset(False, False,
+    #                    False, False, True)
 

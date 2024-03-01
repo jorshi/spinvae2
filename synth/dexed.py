@@ -27,7 +27,12 @@ import io
 import pandas as pd
 
 import synth.dexedbase
-import librenderman as rm  # A symbolic link to the actual librenderman.so must be found in the current folder
+
+try:
+    import librenderman as rm  # A symbolic link to the actual librenderman.so must be found in the current folder
+except ImportError:
+    print("librenderman not found")
+    rm = None
 
 import utils.text
 

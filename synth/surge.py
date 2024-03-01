@@ -22,7 +22,12 @@ from natsort import natsorted
 
 __surgepy_so_path = pathlib.Path(__file__).joinpath('../../../').resolve().joinpath('AudioPlugins/surge_build')
 sys.path.append(str(__surgepy_so_path))
-import surgepy  # Must be properly built and available from the folder above
+
+try:
+    import surgepy  # Must be properly built and available from the folder above
+except ImportError:
+    print("surgepy not found.")
+    surgepy = None
 
 
 
