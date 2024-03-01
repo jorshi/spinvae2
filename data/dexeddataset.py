@@ -75,6 +75,12 @@ class DexedDataset(abstractbasedataset.PresetDataset):
         self.algos = algos if algos is not None else []
         self._operators = operators if operators is not None else [1, 2, 3, 4, 5, 6]
         self.restrict_to_labels = restrict_to_labels
+
+        # Generate the Dexed database (from the SQLite file) if it does not exist
+        if not dexed.PresetDfDatabase._get_dataframe_db_path().exists():
+            print("Dexed dataframe file not found. Generating it from SQL ...")
+            dexed.PresetDfDatabase.save_sqlite_to_df()
+
         # Pandas Dataframe db, always kept in memory (very fast loading and access)
         self._dexed_db = dexed.PresetDfDatabase(n_extra_random_presets > 0)
         # - - - Constraints on parameters, learnable VST parameters - - -

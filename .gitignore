@@ -36,3 +36,7 @@ debug_tests.py
 /tests/test_timbral_models.py
 /genembed.py
 /syncrepo.py
+
+# Synth Dataset
+synth-dataset/*
+synth/dexed_presets.df.pickle
