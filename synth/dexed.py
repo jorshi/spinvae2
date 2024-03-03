@@ -34,6 +34,10 @@ except ImportError:
     print("librenderman not found")
     rm = None
 
+if rm is None:
+    print("Trying dawdreamer instead of librenderman...")
+    import dawdreamer as daw
+
 import utils.text
 
 
@@ -422,12 +426,16 @@ class Dexed(synth.dexedbase.DexedCharacteristics):
         self.buffer_size = buffer_size
         self.fft_size = fft_size  # FFT not used
 
-        self.engine = rm.RenderEngine(self.render_Fs, self.buffer_size, self.fft_size)
-        with utils.text.hidden_prints(filter_stderr=True) if filter_plugin_loading_errors else contextlib.nullcontext():
-            self.engine.load_plugin(self.plugin_path)  # filter the "No protocol specified" double error msg
+        if rm is not None:
+            self.engine = rm.RenderEngine(self.render_Fs, self.buffer_size, self.fft_size)
+            with utils.text.hidden_prints(filter_stderr=True) if filter_plugin_loading_errors else contextlib.nullcontext():
+                self.engine.load_plugin(self.plugin_path)
+        else:
+            engine = daw.RenderEngine(self.render_Fs, self.buffer_size)
+            plugin = engine.make_plugin_processor("dexed", self.plugin_path)
 
         # A generator preset is a list of (int, float) tuples.
-        self.preset_gen = rm.PatchGenerator(self.engine)  # 'RenderMan' generator
+        # self.preset_gen = rm.PatchGenerator(self.engine)  # 'RenderMan' generator
         self.current_preset = None
 
     def __str__(self):
