@@ -14,7 +14,7 @@ import pickle
 import multiprocessing
 from multiprocessing.pool import ThreadPool
 import time
-from typing import Iterable, List, Dict
+from typing import Iterable, List, Dict, Tuple
 import warnings
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -27,16 +27,7 @@ import io
 import pandas as pd
 
 import synth.dexedbase
-
-try:
-    import librenderman as rm  # A symbolic link to the actual librenderman.so must be found in the current folder
-except ImportError:
-    print("librenderman not found")
-    rm = None
-
-if rm is None:
-    print("Trying dawdreamer instead of librenderman...")
-    import dawdreamer as daw
+import dawdreamer as daw
 
 import utils.text
 
@@ -420,19 +411,12 @@ class Dexed(synth.dexedbase.DexedCharacteristics):
         self.midi_note_duration_s = midi_note_duration_s
         self.render_duration_s = render_duration_s
 
-        self.plugin_path = str(pathlib.Path(__file__).parent.joinpath(plugin_relative_path))
         self.render_Fs = render_Fs
         self.reduced_Fs = output_Fs
         self.buffer_size = buffer_size
         self.fft_size = fft_size  # FFT not used
 
-        if rm is not None:
-            self.engine = rm.RenderEngine(self.render_Fs, self.buffer_size, self.fft_size)
-            with utils.text.hidden_prints(filter_stderr=True) if filter_plugin_loading_errors else contextlib.nullcontext():
-                self.engine.load_plugin(self.plugin_path)
-        else:
-            engine = daw.RenderEngine(self.render_Fs, self.buffer_size)
-            plugin = engine.make_plugin_processor("dexed", self.plugin_path)
+        self._load_plugin(plugin_relative_path, filter_plugin_loading_errors)
 
         # A generator preset is a list of (int, float) tuples.
         # self.preset_gen = rm.PatchGenerator(self.engine)  # 'RenderMan' generator
@@ -444,11 +428,57 @@ class Dexed(synth.dexedbase.DexedCharacteristics):
             .format(self.plugin_path, self.render_Fs, self.reduced_Fs, self.buffer_size,
                     self.midi_note_duration_s, self.render_duration_s)
 
+    def _load_plugin(self, relative_path: str, filter_plugin_loading_errors: bool):
+        """
+        Attempt to load the plugin from the given relative path.
+        If none is given then the default path is used.
+        """
+        # Try to load the .so and the .vst3 files
+        self.plugin_path = str(pathlib.Path(__file__).parent.joinpath(relative_path))
+        extension = pathlib.Path(relative_path).suffix
+        alt_extension = ".so" if extension == ".vst3" else ".vst3"
+
+        for ext in [extension, alt_extension]:
+            try:
+                self.plugin_path = pathlib.Path(self.plugin_path).with_suffix(ext)
+                print(f"Attemping to load plugin from {self.plugin_path}")
+                self._load_engine(filter_plugin_loading_errors)
+                print(f"Plugin loaded from {self.plugin_path}")
+                return
+            except Exception as e:
+                print(f"Error loading plugin: {e}")
+        
+        raise RuntimeError(f"Could not load plugin from {self.plugin_path} or {self.plugin_path.with_suffix(alt_extension)}")
+
+    def _load_engine(self, filter_plugin_loading_errors: bool):
+        """
+        Load the plugin into the engine.
+        """
+        self.engine = daw.RenderEngine(self.render_Fs, self.buffer_size)
+        print(f"Loading plugin from {self.plugin_path}")
+        self.synth = self.engine.make_plugin_processor("dexed", str(self.plugin_path))
+        self.engine.load_graph(
+        [
+            (self.synth, []),
+        ]
+        )
+        for p in self.synth.get_parameters_description():
+            if p['name'] == 'Program':
+                self.synth.set_parameter(p['index'], 1.0/32.0)
+            else:
+                self.synth.set_parameter(p['index'], 0.0)
+
     def render_note(self, midi_note, midi_velocity, normalize=False):
         """ Renders a midi note (for the currently set patch) and returns the (normalized) float array and
          associated sampling rate. """
-        self.engine.render_patch(midi_note, midi_velocity, self.midi_note_duration_s, self.render_duration_s)
-        audio_out = self.engine.get_audio_frames()
+        # Add midi note to the synth
+        self.synth.clear_midi()
+        self.synth.add_midi_note(midi_note, midi_velocity, 0.0, self.midi_note_duration_s)
+
+        # Render the synth
+        self.engine.render(self.render_duration_s)
+        audio_out = self.engine.get_audio()
+
         audio = np.asarray(audio_out)
         fadeout_len = int(np.floor(self.render_Fs * self.fadeout_duration_s))
         if fadeout_len > 1:  # fadeout might be disabled if too short
@@ -462,7 +492,7 @@ class Dexed(synth.dexedbase.DexedCharacteristics):
     def assign_preset(self, preset):
         """ :param preset: List of tuples (param_idx, param_value) """
         self.current_preset = preset
-        self.engine.set_patch(self.current_preset)
+        self.synth.set_patch(self.current_preset)
 
     def get_random_preset(self, short_release=False, seed=0):
         """ Returns a uniformely random, properly quantized preset in the VST format (list of (idx, value) tuples). """

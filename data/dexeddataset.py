@@ -380,7 +380,7 @@ class DexedDataset(abstractbasedataset.PresetDataset):
         preset_params = self.get_full_preset_params(preset_UID, preset_variation)
         x_wav, Fs = self._render_audio(preset_params.to_raw(), midi_pitch, midi_velocity)  # Slow: re-Loads the VST
         soundfile.write(self._get_wav_file_path(preset_UID, midi_pitch, midi_velocity, variation),
-                        x_wav, Fs, subtype='FLOAT')
+                        x_wav.T, Fs, subtype='FLOAT')
 
     def _render_audio(self, preset_params: Iterable, midi_note, midi_velocity,
                       custom_note_duration: Tuple[int, int] = None):
